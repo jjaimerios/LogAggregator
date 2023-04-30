@@ -10,17 +10,17 @@ The log data used was sourced from the Loghub project (https://github.com/logpai
 
 Here is a list of the scripts in this repo with a quick description of what each is:
 
-•	config.props – property/config file with shared variable names
-•	create_db.py – creates a new PostgreSQL db; takes db name as a command line argument
-•	create_log_table.py – creates log table if it does not exist; gets log name from config file
-•	drop_log_table.py – drops log table; came in very handy for deleting and rebuilding table
-•	db_funcs.py – database functions that other scripts could call
-•	dag_libs.py – a few functions for other scripts to call
-•	cron_log_runs.sh – called by cron; calls all the below load scripts
-•	load_apache_log.py – loads Apache log data to PostgreSQL db table
-•	load_hadoop_log.py – loads Hadoop log data to PostgreSQL db table
-•	load_hdfs_log.py – loads HDFS log data to PostgreSQL db table
-•	load_linux_log.py – loads Linux log data to PostgreSQL db table
-•	load_windows_log.py – loads Windows log data to PostgreSQL db table
+- config.props – property/config file with shared variable names
+- create_db.py – creates a new PostgreSQL db; takes db name as a command line argument
+- create_log_table.py – creates log table if it does not exist; gets log name from config file
+- drop_log_table.py – drops log table; came in very handy for deleting and rebuilding table
+- db_funcs.py – database functions that other scripts could call
+- dag_libs.py – a few functions for other scripts to call
+- cron_log_runs.sh – called by cron; calls all the below load scripts
+- load_apache_log.py – loads Apache log data to PostgreSQL db table
+- load_hadoop_log.py – loads Hadoop log data to PostgreSQL db table
+- load_hdfs_log.py – loads HDFS log data to PostgreSQL db table
+- load_linux_log.py – loads Linux log data to PostgreSQL db table
+- load_windows_log.py – loads Windows log data to PostgreSQL db table
 
 Again - please see jrios_msde696_de_final.docx for m much more thorough write up of this project.
