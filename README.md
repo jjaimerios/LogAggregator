@@ -23,4 +23,4 @@ Here is a list of the scripts in this repo with a quick description of what each
 - load_linux_log.py – loads Linux log data to PostgreSQL db table
 - load_windows_log.py – loads Windows log data to PostgreSQL db table
 
-Again - please see jrios_msde696_de_final.docx for much more thorough write up of this project.
+Again - please see jrios_msde696_de_final.docx for a much more thorough write up of this project.
