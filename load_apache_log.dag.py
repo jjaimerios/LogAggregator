@@ -1,12 +1,18 @@
 #!/usr/bin/python3
 
+# NOT QUITE WORKING - NEEDS WORK
+# IMPORTS TO AIRFLOW - but does not successfully run
+
 # Script to read in apache log file and write it to a SQL database table.
 #
 # Log line:
 # ['[Sun', 'Dec', '04', '04:47:44', '2005]', '[notice]', 'workerEnv.init()', 'ok', '/etc/httpd/conf/workers2.properties']
-# Log retrieved from https://github.com/logpai/loghub
-
 # ------------------------------------------------------------------------
+
+# Airflow libraries
+from airflow import DAG
+from airflow.decorators import task
+from airflow.utils.dates import days_ago
 
 # Import regex package
 import re
@@ -41,6 +47,7 @@ def formatDateTime(recDate):
 
     return time_date
 
+@task()
 def extract():
     try:
         # Get log file to read from config file
@@ -56,6 +63,7 @@ def extract():
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
+@task()
 def transform(ifh):
     try:
         # Establish database connection
@@ -70,10 +78,9 @@ def transform(ifh):
             rec_id_num = 0
 
         # Get max app rec num
-        app_rec_num = db_funcs.get_max_recnum(conn, tbl_name, "APP_REC", 'Apache')
+        app_rec_num = db_funcs.get_max_val(conn, tbl_name, "APP_REC")
         if str(app_rec_num) == 'None':
             app_rec_num = 0
-        orig_rec_num = app_rec_num
 
         conn.close()
 
@@ -81,24 +88,13 @@ def transform(ifh):
         clean_list = []
 
         # Loop through input log file
-        current_rec = 0
         while True:
             # Print one line
             one_line = ifh.readline()
-            #print(one_line)
 
             # Leave loop if no more records
             if not one_line:
                 break
-
-            #if one_line.replace("\n", "") = "script not found or unable to stat":
-            if "script not found or unable to stat" in one_line:
-                continue
-
-            # Next rec if rec num already in db
-            current_rec += 1
-            if current_rec <= app_rec_num:
-                continue
 
             # Increment record number
             rec_id_num += 1
@@ -114,7 +110,7 @@ def transform(ifh):
             # https://stackoverflow.com/questions/17284947/regex-to-get-all-text-outside-of-brackets
             # Find elements outside any brackets
             message1 = re.findall(r'([^[\]]+)(?:$|\[)', one_line)[1].strip()
-            message = message1.replace("'", "")[:250] # Remove single quotes; limit to 250 chars
+            message = message1.replace("'", "") # Remove single quotes
             #message = re.sub('[\)\(]', '', message1)
 
             # Get time/date
@@ -140,6 +136,7 @@ def transform(ifh):
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
+@task()
 def load(clean_list):
     try:
         # Get table name from config file
@@ -158,7 +155,7 @@ def load(clean_list):
             component = main_rec[5]
             msgx = main_rec[6]
             # Insert record into database table
-            db_funcs.insertTableRec(conn, recNum, 'Apache', timeDate, dayx, msgType, app_rec, component, msgx, tbl_name)
+            db_funcs.insertTableRec(conn, recNum, timeDate, dayx, msgType, str(app_rec), component, msgx, tbl_name)
 
         # Close database connection
         conn.close()
@@ -168,22 +165,12 @@ def load(clean_list):
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
-# Main function
-def main():
+with DAG('load_apache_log_dag',
+         schedule_interval='@once',
+         start_date=datetime(2023, 4, 10),
+         catchup=False) as dag:
+    extract_data = extract()
+    transform_data = transform(extract_data)
+    load_data = load(transform_data)
 
-    # Extract data - get open file handle
-    ifh = extract()
-    # one_line = ifh.readline()
-    # print(one_line)
-
-    # Clean data - get clean list
-    clean_data = transform(ifh)
-
-    # Load data to postgresql db
-    loaded_data = load(clean_data)
-
-    #print("SUCCESS")
-
-# Call main
-if __name__ == "__main__":
-    main()
+    extract_data >> transform_data >> load_data

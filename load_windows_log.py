@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
-# Script to read in apache log file and write it to a SQL database table.
+# Script to read in windows log file and write it to a SQL database table.
 #
 # Log line:
-# ['[Sun', 'Dec', '04', '04:47:44', '2005]', '[notice]', 'workerEnv.init()', 'ok', '/etc/httpd/conf/workers2.properties']
+# 2016-09-28 04:30:30, Info                  CBS    Loaded Servicing Stack v6.1.7601.23505 with Core: C:\Windows\winsxs\amd64_microsoft-windows-servicingstack_31bf3856ad364e35_6.1.7601.23505_none_681aa442f6fed7f0\cbscore.dll
 # Log retrieved from https://github.com/logpai/loghub
 
 # ------------------------------------------------------------------------
@@ -30,29 +30,18 @@ config.read('/home/jrios/airflow/etc/config.props') # Property file with app var
 
 # ------------------------------------------------------------------------
 
-# Format date / time
-# Input Example: Sun Dec 04 04:47:44 2005
-# Output Example: 2005-12-04 04:47:44
-def formatDateTime(recDate):
-    time_date = re.split(' ', recDate)[4].replace("]","") + "-" +\
-    dag_libs.getNumericMonth(re.split(' ', recDate)[1]) + "-" +\
-    re.split(' ', recDate)[2] + " " +\
-    re.split(' ', recDate)[3]
-
-    return time_date
-
 def extract():
     try:
         # Get log file to read from config file
-        apache_log = config.get('Log_Files', 'apache_log_file')
+        windows_log = config.get('Log_Files', 'windows_log_file')
 
         # Open a file handle
-        fh = open(apache_log, "r")
+        fh = open(windows_log, "r")
 
         return fh
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'windows_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
@@ -70,7 +59,7 @@ def transform(ifh):
             rec_id_num = 0
 
         # Get max app rec num
-        app_rec_num = db_funcs.get_max_recnum(conn, tbl_name, "APP_REC", 'Apache')
+        app_rec_num = db_funcs.get_max_recnum(conn, tbl_name, "APP_REC", 'Windows')
         if str(app_rec_num) == 'None':
             app_rec_num = 0
         orig_rec_num = app_rec_num
@@ -85,15 +74,10 @@ def transform(ifh):
         while True:
             # Print one line
             one_line = ifh.readline()
-            #print(one_line)
 
             # Leave loop if no more records
             if not one_line:
                 break
-
-            #if one_line.replace("\n", "") = "script not found or unable to stat":
-            if "script not found or unable to stat" in one_line:
-                continue
 
             # Next rec if rec num already in db
             current_rec += 1
@@ -104,27 +88,26 @@ def transform(ifh):
             rec_id_num += 1
             app_rec_num += 1
 
-            # Find any values enclosed in brackets
-            in_brackets = re.findall(r'\[.*?\]', str(one_line))
-            rec_date = in_brackets[0]
+            # Replace multiple spaces together with a single space.
+            # Done by splitting each "word" into a list and joining
+            # back together into one with a space between each element
+            one_line = " ".join(one_line.split())
+            rec_split = re.split(' ', one_line)
 
-            # Remove brackets from message type
-            msg_type = re.sub('[\]\[]', '', in_brackets[1])
-
-            # https://stackoverflow.com/questions/17284947/regex-to-get-all-text-outside-of-brackets
-            # Find elements outside any brackets
-            message1 = re.findall(r'([^[\]]+)(?:$|\[)', one_line)[1].strip()
-            message = message1.replace("'", "")[:250] # Remove single quotes; limit to 250 chars
-            #message = re.sub('[\)\(]', '', message1)
-
-            # Get time/date
-            time_date = formatDateTime(rec_date)
+            # Get time/date - first several bytes of record
+            time_date =  one_line[0:19]
 
             # Get day of week
-            day = re.split(' ', rec_date)[0].replace("[","")
+            day = "None"
 
-            # Set component
-            component = 'None'
+            # Remove brackets from message type
+            msg_type = rec_split[2]
+
+            # Set component - 5th element; remove colon
+            component = rec_split[3]
+
+            # Get message - everything after 1st colon; limit to 250 chars
+            message = one_line.split(' ', 4)[-1].replace("'", "")[:250]
 
             # Insert record into database table
             clean_rec_list = [rec_id_num, time_date, day, msg_type, app_rec_num, component, message]
@@ -136,7 +119,7 @@ def transform(ifh):
         return clean_list
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'windows_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
@@ -158,13 +141,13 @@ def load(clean_list):
             component = main_rec[5]
             msgx = main_rec[6]
             # Insert record into database table
-            db_funcs.insertTableRec(conn, recNum, 'Apache', timeDate, dayx, msgType, app_rec, component, msgx, tbl_name)
+            db_funcs.insertTableRec(conn, recNum, 'Windows', timeDate, dayx, msgType, app_rec, component, msgx, tbl_name)
 
         # Close database connection
         conn.close()
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'windows_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 

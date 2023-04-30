@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
-# Script to read in apache log file and write it to a SQL database table.
+# Script to read in hdfs log file and write it to a SQL database table.
 #
 # Log line:
-# ['[Sun', 'Dec', '04', '04:47:44', '2005]', '[notice]', 'workerEnv.init()', 'ok', '/etc/httpd/conf/workers2.properties']
+# 081109 203615 148 INFO dfs.DataNode$PacketResponder: PacketResponder 1 for block blk_38865049064139660 terminating
 # Log retrieved from https://github.com/logpai/loghub
 
 # ------------------------------------------------------------------------
@@ -31,28 +31,27 @@ config.read('/home/jrios/airflow/etc/config.props') # Property file with app var
 # ------------------------------------------------------------------------
 
 # Format date / time
-# Input Example: Sun Dec 04 04:47:44 2005
-# Output Example: 2005-12-04 04:47:44
+# Input Example: 081109
+# Output Example: 2008-11-09
 def formatDateTime(recDate):
-    time_date = re.split(' ', recDate)[4].replace("]","") + "-" +\
-    dag_libs.getNumericMonth(re.split(' ', recDate)[1]) + "-" +\
-    re.split(' ', recDate)[2] + " " +\
-    re.split(' ', recDate)[3]
+    time_date = "20" + recDate[0:2] + "-" + \
+            recDate[2:4] + "-" + \
+            recDate[4:6]
 
     return time_date
 
 def extract():
     try:
         # Get log file to read from config file
-        apache_log = config.get('Log_Files', 'apache_log_file')
+        hdfs_log = config.get('Log_Files', 'hdfs_log_file')
 
         # Open a file handle
-        fh = open(apache_log, "r")
+        fh = open(hdfs_log, "r")
 
         return fh
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'hdfs_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
@@ -70,7 +69,7 @@ def transform(ifh):
             rec_id_num = 0
 
         # Get max app rec num
-        app_rec_num = db_funcs.get_max_recnum(conn, tbl_name, "APP_REC", 'Apache')
+        app_rec_num = db_funcs.get_max_recnum(conn, tbl_name, "APP_REC", 'HDFS')
         if str(app_rec_num) == 'None':
             app_rec_num = 0
         orig_rec_num = app_rec_num
@@ -85,15 +84,10 @@ def transform(ifh):
         while True:
             # Print one line
             one_line = ifh.readline()
-            #print(one_line)
 
             # Leave loop if no more records
             if not one_line:
                 break
-
-            #if one_line.replace("\n", "") = "script not found or unable to stat":
-            if "script not found or unable to stat" in one_line:
-                continue
 
             # Next rec if rec num already in db
             current_rec += 1
@@ -104,27 +98,22 @@ def transform(ifh):
             rec_id_num += 1
             app_rec_num += 1
 
-            # Find any values enclosed in brackets
-            in_brackets = re.findall(r'\[.*?\]', str(one_line))
-            rec_date = in_brackets[0]
-
-            # Remove brackets from message type
-            msg_type = re.sub('[\]\[]', '', in_brackets[1])
-
-            # https://stackoverflow.com/questions/17284947/regex-to-get-all-text-outside-of-brackets
-            # Find elements outside any brackets
-            message1 = re.findall(r'([^[\]]+)(?:$|\[)', one_line)[1].strip()
-            message = message1.replace("'", "")[:250] # Remove single quotes; limit to 250 chars
-            #message = re.sub('[\)\(]', '', message1)
-
-            # Get time/date
+            # Get time/dat - first 6 characters of log line
+            rec_date = one_line[0:6]
             time_date = formatDateTime(rec_date)
 
             # Get day of week
-            day = re.split(' ', rec_date)[0].replace("[","")
+            day = 'None'
 
-            # Set component
-            component = 'None'
+            # Get message type - split line on space and get 4th element
+            rec_split = re.split(' ', one_line)
+            msg_type = rec_split[3]
+
+            # Set component - 5th element; remove colon
+            component = rec_split[4].replace(":", "")
+
+            # Get message - everything after 1st colon; limit to 250 chars
+            message = one_line.split(': ', 1)[-1][:250]
 
             # Insert record into database table
             clean_rec_list = [rec_id_num, time_date, day, msg_type, app_rec_num, component, message]
@@ -136,7 +125,7 @@ def transform(ifh):
         return clean_list
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'hdfs_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 
@@ -158,13 +147,13 @@ def load(clean_list):
             component = main_rec[5]
             msgx = main_rec[6]
             # Insert record into database table
-            db_funcs.insertTableRec(conn, recNum, 'Apache', timeDate, dayx, msgType, app_rec, component, msgx, tbl_name)
+            db_funcs.insertTableRec(conn, recNum, 'HDFS', timeDate, dayx, msgType, app_rec, component, msgx, tbl_name)
 
         # Close database connection
         conn.close()
 
     except Exception as Argument:
-        input_log_name = config.get('Log_Files', 'apache_log_file')
+        input_log_name = config.get('Log_Files', 'hdfs_log_file')
         airflow_log = os.path.basename(input_log_name) + '.airflow.log'
         dag_libs.process_exception(Argument,airflow_log)
 

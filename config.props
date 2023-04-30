@@ -1,0 +1,9 @@
+[Log_Files]
+apache_log_file=/mnt/documents/Regis/Final2/SampleLogs/Apache_2k.log.txt
+hadoop_log_file=/mnt/documents/Regis/Final2/SampleLogs/Hadoop_2k.log.txt
+hdfs_log_file=/mnt/documents/Regis/Final2/SampleLogs/HDFS_2k.log.txt
+linux_log_file=/mnt/documents/Regis/Final2/SampleLogs/Linux_2k.log.txt
+windows_log_file=/mnt/documents/Regis/Final2/SampleLogs/Windows_2k.log.txt
+airflow_log_dir=/home/jrios/airflow/logs/
+[Db_Info]
+log_table=log_table
